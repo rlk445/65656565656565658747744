@@ -1,0 +1,45 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # O jogo inteiro vai dentro do app (igual ao IPA). Ficam de fora só os arquivos do modo PC e dos projetos iOS/Android.
+      - name: Copiar o jogo para dentro do app
+        run: |
+          rm -rf android/app/src/main/assets && mkdir -p android/app/src/main/assets/www
+          rsync -a \
+            --exclude '/ios' --exclude '/android' --exclude '/.github' --exclude '/.git' \
+            --exclude '/phone' --exclude '/pad' --exclude '/Nueva carpeta' \
+            --exclude '/server.js' --exclude '/js/server.js' --exclude '/js/navegador-server.js' \
+            --exclude '/iniciar.bat' --exclude '/iniciar.command' --exclude '/liberar-firewall.bat' \
+            --exclude '/LEIAME.txt' --exclude '/COMO-USAR.txt' --exclude '/.htaccess' --exclude '/*.ipa' --exclude '/*.apk' \
+            ./ android/app/src/main/assets/www/
+          test -f android/app/src/main/assets/www/index.html && echo "jogo copiado"
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          cp icons/icon-192.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compilar o APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SKZ-VR-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
