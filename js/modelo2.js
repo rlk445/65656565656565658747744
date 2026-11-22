@@ -67,9 +67,9 @@ function applyFilter() {
   if (mat) mat.alphaTest = S.m2Smooth ? 0.3 : 0.08;
 }
 m2.applyFilter = applyFilter;
-const prog = {};
+const prog = {}, failed = {};
 function loadSeq(key, cb) {                                                    // carrega todos os quadros da pasta; o tamanho vem de cada imagem na hora
-  const m = ATLAS[key], imgs = new Array(m.n); let ok = 0, bad = false; prog[key] = 0;
+  const m = ATLAS[key], imgs = []; let ok = 0, bad = false; prog[key] = 0; delete failed[key];
   const fin = () => {
     let mw = 1, mh = 1; imgs.forEach(i => { mw = Math.max(mw, i.naturalWidth); mh = Math.max(mh, i.naturalHeight); });
     const fit = Math.min(1, SEQ_MAX_H / (mh * PXM), SEQ_MAX_W / (mw * PXM));
@@ -77,12 +77,12 @@ function loadSeq(key, cb) {                                                    /
     tex[key] = imgs.map(i => { const tx = new T.Texture(i); tx.colorSpace = T.SRGBColorSpace; tx.generateMipmaps = false; tx.minFilter = tx.magFilter = S.m2Smooth ? T.LinearFilter : T.NearestFilter; tx.needsUpdate = true; return tx; });
     m2.loading--; delete prog[key]; const q = pend[key]; delete pend[key]; q.forEach(f => { if (f) f(); }); refreshPanel();
   };
-  imgs.forEach((_, i) => {
-    const img = new Image(); imgs[i] = img;
-    img.onload = () => { prog[key] = ++ok; if (ok === m.n) fin(); else if (ok % 5 === 0) refreshPanel(); };
-    img.onerror = () => { if (bad) return; bad = true; m2.loading--; m2.err = 'não carregou ' + m.seq + ' (quadro ' + i + ')'; delete pend[key]; delete prog[key]; VR.log('modelo2: ' + m2.err); refreshPanel(); };
+  for (let i = 0; i < m.n; i++) {
+    const img = new Image(); imgs.push(img);
+    img.onload = () => { prog[key] = ++ok; if (ok === m.n) fin(); else refreshPanel(); };
+    img.onerror = () => { if (bad) return; bad = true; m2.loading--; failed[key] = 1; m2.err = 'não carregou ' + m.seq + ' (quadro ' + i + ')'; delete pend[key]; delete prog[key]; VR.log('modelo2: ' + m2.err); refreshPanel(); };
     img.src = encodeURI(PATH + m.seq + '/tile' + String(i).padStart(3, '0') + '.png') + '?v=1';
-  });
+  }
 }
 function loadAnim(key, cb) {
   if (tex[key]) { if (cb) cb(); return; }
@@ -303,7 +303,7 @@ const R = {
 const pct = v => Math.round(v * 100) + '%';
 function animRows(grp) {
   return ANIM_LIST.filter(a => a[2] === grp).map(a => R.button(a[1], () => { if (a[0] === 'expressions') S.m2Expr = S.m2Expr || 0; play(a[0]); },
-    { chev: false, val: () => (st.key === a[0] ? '● ativa' : (pend[a[0]] ? 'carregando…' + (prog[a[0]] != null ? ' ' + prog[a[0]] + '/' + ATLAS[a[0]].n : '') : '')) }));
+    { chev: false, val: () => (st.key === a[0] ? '● ativa' : (failed[a[0]] ? 'erro ao carregar' : pend[a[0]] ? 'carregando…' + (prog[a[0]] != null ? ' ' + prog[a[0]] + '/' + ATLAS[a[0]].n : '') : '')) }));
 }
 ui.panel({ id: 'modelo2', mw: 1.0, mh: 0.96, primary: true, title: 'Teste Modelo 2', titleIcon: 'cube', dist: 1.15, dy: 0.04, dx: 0.45, order: 11,
   onOpen: p => { ui.lastPrimary = 'modelo2'; p.rebuild(); },
